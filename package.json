@@ -1,11 +1,8 @@
 {
   "name": "eslint-plugin-quick-prettier",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "description": "Fast prettier for eslint --fix, without warnings",
   "main": "index.js",
-  "scripts": {
-    "test": "./node_modules/.bin/mocha tests/**/*.js"
-  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/SalvatorePreviti/eslint-plugin-quick-prettier.git"
