@@ -39,7 +39,9 @@ This package exposes also a `helpers` module that can be required as `require('q
 
 ## helpers.addEslintConfigPrettierRules
 
-Modifying your `.eslintrc.js` in this way:
+Inject [eslint-config-prettier](https://github.com/prettier/eslint-config-prettier) configurations to your configuration dynamically, detecting which plugins are enabled in your config.
+
+For example, in your `.eslintrc.js`, do
 
 ```js
 const helpers = require('quick-prettier/helpers')
@@ -58,8 +60,6 @@ const myConfiguration = {
 
 module.exports = helpers.addEslintConfigPrettierRules(eslintConfig)
 ```
-
-will automatically inject this plugin and the required overrides coming from [eslint-config-prettier](https://github.com/prettier/eslint-config-prettier) to your configuration.
 
 ## helpers.mergeEslintConfigs
 
