@@ -203,8 +203,9 @@ function addEslintConfigPrettierRules(eslintConfig) {
 
   if (!pluginSet.has('quick-prettier')) {
     if (!eslintConfig.plugins) {
-      eslintConfig.plugins.push('quick-prettier')
+      eslintConfig.plugins = []
     }
+    eslintConfig.plugins.push('quick-prettier')
   }
 
   eslintConfig.rules = {
@@ -247,7 +248,7 @@ function addEslintConfigPrettierRules(eslintConfig) {
     }
   }
 
-  if (pluginSet.has('babel') || pluginSet.has('babel')) {
+  if (pluginSet.has('babel')) {
     eslintConfig.rules = {
       ...require('eslint-config-prettier/babel').rules,
       ...eslintConfig.rules
