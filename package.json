@@ -1,0 +1,43 @@
+{
+  "name": "eslint-plugin-quick-prettier",
+  "version": "1.0.0",
+  "description": "Fast prettier for eslint --fix, without warnings",
+  "main": "index.js",
+  "scripts": {
+    "test": "./node_modules/.bin/mocha tests/**/*.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SalvatorePreviti/eslint-plugin-quick-prettier.git"
+  },
+  "keywords": [
+    "quick",
+    "prettier",
+    "eslint",
+    "fix",
+    "--fix"
+  ],
+  "author": "Salvatore Previti",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/SalvatorePreviti/eslint-plugin-quick-prettier/issues"
+  },
+  "homepage": "https://github.com/SalvatorePreviti/eslint-plugin-quick-prettier#readme",
+  "engines": {
+    "node": ">=8.10.0"
+  },
+  "devDependencies": {
+    "eslint": "^6.0.1",
+    "eslint-plugin-eslint-plugin": "^2.1.0",
+    "eslint-plugin-node": "^9.1.0",
+    "eslint-plugin-self": "^1.2.0",
+    "prettier": "^1.18.2"
+  },
+  "peerDependencies": {
+    "eslint": ">=5.0.0",
+    "prettier": ">=1.18.2"
+  },
+  "dependencies": {
+    "eslint-config-prettier": ">=6.0.0"
+  }
+}
