@@ -1,6 +1,6 @@
 {
   "name": "eslint-plugin-quick-prettier",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "Fast prettier for eslint --fix, without warnings",
   "main": "index.js",
   "repository": {
