@@ -209,7 +209,7 @@ function addEslintConfigPrettierRules(eslintConfig) {
   }
 
   eslintConfig.rules = {
-    ...require('./').rules,
+    ...require('./').configs.rules,
     ...eslintConfig.rules
   }
 
