@@ -2,33 +2,32 @@
 
 const { getCallerEslintApi, getPrettier, getPrettierConfig } = require('../helpers')
 
-const prettierSym = Symbol.for('️quick-prettier')
-
-let linterContextes = null
-
-let meta = {
+const meta = {
   docs: {
     url: 'https://github.com/SalvatorePreviti/eslint-plugin-quick-prettier'
   },
   fixable: 'code'
 }
 
+let schema = undefined
+
 const emptyObject = {}
 
 exports.meta = meta
 exports.create = create
-
-Object.defineProperty(exports, 'meta', {
+Object.defineProperty(exports, 'schema', {
   get() {
     patchEslintApi()
-    return meta
+    return schema
   },
   set(value) {
-    meta = value
+    schema = value
   },
   configurable: true,
   enumerable: true
 })
+
+let linterContextes = null
 
 function create(context) {
   if (!linterContextes) {
@@ -41,6 +40,8 @@ function create(context) {
 
   return emptyObject
 }
+
+const prettierSym = Symbol.for('️quick-prettier')
 
 /**
  * Patches eslint public API to support prettier fix afterwards
