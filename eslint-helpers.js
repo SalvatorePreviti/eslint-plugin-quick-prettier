@@ -156,19 +156,22 @@ function addToPluginsSet(set, eslintConfig) {
 }
 
 function addEslintConfigPrettierRules(eslintConfig) {
-  eslintConfig = { ...eslintConfig }
+  eslintConfig = { ...eslintConfig, plugins: eslintConfig.plugins ? Array.from(eslintConfig.plugins) : [] }
 
   const pluginSet = new Set()
   addToPluginsSet(pluginSet, eslintConfig)
 
-  if (!pluginSet.has('quick-prettier')) {
-    eslintConfig.plugins = isArray(eslintConfig.plugins) ? [...eslintConfig.plugins] : []
-    eslintConfig.plugins.push('quick-prettier')
-  }
+  const recommended = require('.').configs.recommended
 
   eslintConfig.rules = {
-    ...require('.').configs.rules,
+    ...recommended.rules,
     ...eslintConfig.rules
+  }
+
+  for (const recommendedPlugin of recommended.plugins) {
+    if (!pluginSet.has(recommendedPlugin)) {
+      eslintConfig.plugins.push(recommendedPlugin)
+    }
   }
 
   if (pluginSet.has('vue')) {
