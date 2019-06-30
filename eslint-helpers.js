@@ -1,10 +1,18 @@
+const Module = require('module')
 const path = require('path')
 const fs = require('fs')
 
-const { isArray } = Array
-const { keys: objectKeys, assign: objectAssign } = Object
+const { isArray, from: arrayFrom } = Array
+const { keys: objectKeys, assign: objectAssign, defineProperty } = Object
+const { existsSync } = fs
 
-const eslintExpectedPath = `node_modules${path.sep}eslint${path.sep}`
+const _eslintExpectedPath = `node_modules${path.sep}eslint${path.sep}`
+const _hasPackageCache = new Map()
+const _globalPathsArray = Module.globalPaths || []
+const _globalPathsSet = new Set(_globalPathsArray)
+let _prettier = null
+let _prettierConfig
+let _oldNodeModulePaths = null
 
 /**
  * Requires eslint. Does it by understanding which one is the currently running eslint.
@@ -21,7 +29,7 @@ function getCallerEslintApi(callerFunction, stackTraceLimit = 10) {
     Error.prepareStackTrace = (_error, callinfos) => callinfos
     try {
       const error = new Error()
-      Error.captureStackTrace(error, callerFunction || exports.getCallerEslintApi)
+      Error.captureStackTrace(error, callerFunction || module.exports.getCallerEslintApi)
       throw error
     } catch (error) {
       stack = error.stack
@@ -36,9 +44,9 @@ function getCallerEslintApi(callerFunction, stackTraceLimit = 10) {
       if (typeof item.getFileName === 'function') {
         const name = item.getFileName()
         if (typeof name === 'string') {
-          const idx = name.lastIndexOf(eslintExpectedPath)
+          const idx = name.lastIndexOf(_eslintExpectedPath)
           if (idx >= 0) {
-            return require(name.slice(0, idx + eslintExpectedPath.length))
+            return require(name.slice(0, idx + _eslintExpectedPath.length))
           }
         }
       }
@@ -47,41 +55,32 @@ function getCallerEslintApi(callerFunction, stackTraceLimit = 10) {
   return require('eslint')
 }
 
-let prettier = null
-
 /**
  * @returns {typeof import('prettier')}
  */
 function getPrettier() {
-  if (prettier !== null) {
-    return prettier
-  }
-
-  const resolvedPrettier = path.resolve(path.join(process.cwd(), 'node_modules', 'prettier'))
-  if (fs.existsSync(resolvedPrettier)) {
-    try {
-      prettier = require(resolvedPrettier)
-      return prettier
-    } catch (_error) {}
-  }
-
-  prettier = require('prettier')
-  return prettier
+  return _prettier || (_prettier = module.exports.tryRequireLocal('prettier') || require('prettier'))
 }
 
-let prettierConfig
-
 function getPrettierConfig() {
-  if (prettierConfig === undefined) {
-    prettierConfig = {
-      ...fs.readFileSync(path.resolve(path.join(__dirname, './.prettierrc'))),
-      ...getPrettier().resolveConfig.sync(process.cwd(), {
+  if (_prettierConfig === undefined) {
+    _prettierConfig = {
+      ...require('./.prettierrc.json'),
+      ...getPrettier().resolveConfig.sync(module.exports.baseFolder, {
         editorconfig: true,
         useCache: true
       })
     }
   }
-  return prettierConfig
+  return _prettierConfig
+}
+
+function mergeEslintConfigs(...sources) {
+  let result = {}
+  for (const source of sources) {
+    result = deepmerge(result, source, true)
+  }
+  return result
 }
 
 function deepmerge(target, src, combine, isRule) {
@@ -139,14 +138,6 @@ function deepmerge(target, src, combine, isRule) {
   }
 
   return dst
-}
-
-function mergeEslintConfigs(...sources) {
-  let result = {}
-  for (const source of sources) {
-    result = deepmerge(result, source, true)
-  }
-  return result
 }
 
 function addToPluginsSet(set, eslintConfig) {
@@ -209,7 +200,7 @@ function addEslintConfigPrettierRules(eslintConfig) {
   }
 
   eslintConfig.rules = {
-    ...require('./').configs.rules,
+    ...require('.').configs.rules,
     ...eslintConfig.rules
   }
 
@@ -263,16 +254,142 @@ function addEslintConfigPrettierRules(eslintConfig) {
   }
 
   if (isArray(eslintConfig.overrides)) {
-    for (const override of eslintConfig.overrides) {
-      addEslintConfigPrettierRules(override)
-    }
+    eslintConfig.overrides = eslintConfig.overrides.map(module.exports.addEslintConfigPrettierRules)
   }
 
   return eslintConfig
 }
 
+/**
+ * Checks if a path is a global require module path.
+ * @param {string|null|undefined} filepath The file path to check
+ * @returns {boolean} True if the path is a global node_modules path, false if not.
+ */
+function isGlobalPath(filepath) {
+  if (typeof filepath === 'string' && filepath.length !== 0) {
+    if (filepath.startsWith(module.exports.baseFolder)) {
+      return false
+    }
+    if (_globalPathsSet.has(filepath)) {
+      return true
+    }
+    for (let i = 0; i < _globalPathsArray.length; ++i) {
+      if (filepath.startsWith(_globalPathsArray[i])) {
+        return true
+      }
+    }
+  }
+  return false
+}
+
+let _resolvePaths
+
+function getResolvePathsSet() {
+  if (!_resolvePaths) {
+    _resolvePaths = new Set(
+      (
+        (require.resolve && require.resolve.paths && require.resolve.paths(module.exports.baseFolder)) ||
+        Module._nodeModulePaths(module.exports.baseFolder)
+      ).filter(x => !isGlobalPath(x) && existsSync(x))
+    )
+    const thisPackage = path.join(__dirname, 'node_modules')
+    if (existsSync(thisPackage)) {
+      _resolvePaths.add(thisPackage)
+    }
+  }
+  return _resolvePaths
+}
+
+/**
+ * Tries to resolve the path of a module.
+ * @param {string} id The module to resolve.
+ * @returns {string|null} The resolved module path or null if not found.
+ */
+function hasLocalPackage(id) {
+  if (id.startsWith('.')) {
+    id = path.resolve(module.exports.baseFolder, id)
+  } else if (id.startsWith(path.sep) || id.startsWith('/')) {
+    id = path.resolve(id)
+  }
+  let result = _hasPackageCache.get(id)
+  if (result === undefined) {
+    result = false
+    try {
+      if (isGlobalPath(require.resolve(id))) {
+        result = true
+      }
+    } catch (_error) {}
+    _hasPackageCache.set(id, result)
+  }
+  return result
+}
+
+function _nodeModulePaths(from) {
+  const set = new Set()
+  let customAdded = false
+  const defaults = _oldNodeModulePaths.call(Module, from)
+
+  for (let i = 0, defaultsLen = defaults.length; i !== defaultsLen; ++i) {
+    const value = defaults[i]
+    if (!customAdded && _globalPathsSet.has(value)) {
+      customAdded = true
+      for (const p of _resolvePaths || getResolvePathsSet()) {
+        set.add(p)
+      }
+    }
+    set.add(defaults[i])
+  }
+  if (!customAdded) {
+    for (const p of _resolvePaths || getResolvePathsSet()) {
+      set.add(p)
+    }
+  }
+  return arrayFrom(set)
+}
+
+function addNodeRequirePath(additionalPath) {
+  if (_oldNodeModulePaths === null) {
+    _oldNodeModulePaths = Module._nodeModulePaths
+    if (typeof _oldNodeModulePaths !== 'function') {
+      throw new Error(
+        'Module._nodeModulePaths is undefined. Maybe node version ' + process.version + ' does not support it?'
+      )
+    }
+    Module._nodeModulePaths = _nodeModulePaths
+  }
+
+  if (additionalPath) {
+    getResolvePathsSet().add(path.resolve(additionalPath))
+  }
+}
+
+function defineLazyProperty(target, name, getter) {
+  defineProperty(target, name, {
+    get() {
+      const result = getter()
+      this[name] = result
+      return result
+    },
+    set(value) {
+      defineProperty(target, name, {
+        value,
+        configurable: true,
+        writable: true,
+        enumerable: true
+      })
+    },
+    configurable: true,
+    enumerable: true
+  })
+}
+
+exports.baseFolder = process.cwd()
+exports.hasLocalPackage = hasLocalPackage
+exports.isGlobalPath = isGlobalPath
 exports.getPrettier = getPrettier
-exports.getCallerEslintApi = getCallerEslintApi
 exports.getPrettierConfig = getPrettierConfig
+exports.getCallerEslintApi = getCallerEslintApi
 exports.mergeEslintConfigs = mergeEslintConfigs
 exports.addEslintConfigPrettierRules = addEslintConfigPrettierRules
+exports.addNodeRequirePath = addNodeRequirePath
+exports.defineLazyProperty = defineLazyProperty

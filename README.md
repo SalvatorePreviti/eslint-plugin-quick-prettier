@@ -35,7 +35,7 @@ Or enable just plugin in your `.eslintrc`
 
 # helpers
 
-This package exposes also a `helpers` module that can be required as `require('quick-prettier/helpers')`.
+This package exposes also a `helpers` module that can be required as `require('quick-prettier/eslint-helpers')`.
 
 ## helpers.addEslintConfigPrettierRules
 
@@ -44,7 +44,7 @@ Inject [eslint-config-prettier](https://github.com/prettier/eslint-config-pretti
 For example, in your `.eslintrc.js`, do
 
 ```js
-const helpers = require('quick-prettier/helpers')
+const helpers = require('quick-prettier/eslint-helpers')
 
 const myConfiguration = {
   extends: ['plugin:react/recommended'],
@@ -73,7 +73,7 @@ const mergedConfig = mergeEslintConfigs(config1, config2, config3 ...)
 ## helpers.getPrettierConfig
 
 Gets the cached `.prettierrc` configuration for the current directory.
-If none is present, uses the default configuration defined in `eslint-plugin-quick-prettier/.prettierrc`
+If none is present, uses the default configuration defined in `eslint-plugin-quick-prettier/.prettierrc.json`
 
 ```js
 const prettierConfig = helpers.getPrettierConfig()
@@ -83,3 +83,36 @@ console.log(prettierConfig.printWidth)
 ## helpers.getPrettier
 
 Requires `require("prettier")`, but prefer the version installed in your current directory if present.
+
+## helpers.hasLocalPackage
+
+Returns true if the given module (or submodule file) is a locally installed module or file.
+Returns false if the module does not exists or is installed only globally.
+This function caches the result.
+
+```js
+const isSomeModuleInstalledLocally = helpers.hasLocalPackage('some-module')
+```
+
+## helpers.isGlobalPath
+
+Checks if a path is a global require module path.
+
+```js
+const isGlobalPath = helpers.isGlobalPath(helpers.tryResolveLocal('some-module'))
+console.log('some-module is installed', isGlobalPath ? 'globally' : 'locally')
+```
+
+## helpers.addNodeRequirePath
+
+Adds additional require paths to node module resolve mechanism to allow eslint to load plugins and extends from other folders.
+It does it by overriding the function `require('module')._nodeModulePaths`.
+Called the first time, adds also helpers.baseFolder (that by default is process.cwd()).
+
+```js
+helpers.addNodeRequirePath()
+```
+
+```js
+helpers.addNodeRequirePath('/folter/a/node_modules')
+```
