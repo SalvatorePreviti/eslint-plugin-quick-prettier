@@ -1,6 +1,6 @@
 **/dist/**/*.js
 **/dist/**/*.map
-**/dist/**/*.ts
+**/dist/**/*.d.ts
 package
 *.tgz
 .temp

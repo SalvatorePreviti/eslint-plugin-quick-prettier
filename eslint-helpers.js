@@ -96,17 +96,48 @@ function requirePrettier() {
   return require(require.resolve('prettier', { paths: Array.from(resolvePaths) }))
 }
 
-function getPrettierConfig() {
-  if (_prettierConfig === undefined) {
-    _prettierConfig = {
-      ...require('./.prettierrc.json'),
-      ...getPrettier().resolveConfig.sync(module.exports.baseFolder, {
-        editorconfig: true,
-        useCache: true
-      })
-    }
+/**
+ * Loads the prettier configuration for the specified project.
+ * @returns {{
+ *   parser?: string
+ *   bracketSpacing?: boolean,
+ *   jsxBracketSameLine?: boolean,
+ *   printWidth?: number,
+ *   semi?: boolean,
+ *   singleQuote?: boolean,
+ *   tabWidth?: number,
+ *   endOfLine?: string,
+ *   trailingComma?: string,
+ *   useTabs?: boolean
+ * }}
+ */
+function loadPrettierConfig(baseFolder = module.exports.baseFolder) {
+  return {
+    ...require('./.prettierrc.json'),
+    ...getPrettier().resolveConfig.sync(baseFolder, {
+      editorconfig: true,
+      useCache: true
+    })
   }
-  return _prettierConfig
+}
+
+/**
+ * Gets the prettier configuration for the current project.
+ * @returns {{
+ *   parser?: string
+ *   bracketSpacing?: boolean,
+ *   jsxBracketSameLine?: boolean,
+ *   printWidth?: number,
+ *   semi?: boolean,
+ *   singleQuote?: boolean,
+ *   tabWidth?: number,
+ *   endOfLine?: string,
+ *   trailingComma?: string,
+ *   useTabs?: boolean
+ * }}
+ */
+function getPrettierConfig() {
+  return _prettierConfig || (_prettierConfig = loadPrettierConfig())
 }
 
 function addToPluginsSet(set, eslintConfig) {
@@ -155,6 +186,12 @@ function addToPluginsSet(set, eslintConfig) {
   }
 }
 
+/**
+ * Overrides formatting rules with eslint-config-prettier
+ * @template T
+ * @param  {...readonly T} eslintConfig The source eslint configuration to override
+ * @returns {T} A new eslint configuration with replaced rules
+ */
 function addEslintConfigPrettierRules(eslintConfig) {
   eslintConfig = { ...eslintConfig, plugins: eslintConfig.plugins ? Array.from(eslintConfig.plugins) : [] }
 
