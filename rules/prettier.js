@@ -58,9 +58,14 @@ function patchEslintApi() {
 
   eslintApi[prettierSym] = true
 
-  const oldVerifyAndFix = eslintApi.Linter.prototype.verifyAndFix
+  const Linter = eslintApi.Linter
+
+  let linterPrototype = (Linter && Linter.prototype) || eslintApi.linter
+
+  const oldVerifyAndFix = linterPrototype
 
   function verifyAndFix(code, config, options) {
+    const self = Linter ? this : eslintApi.linter || this
     let fix, filename
     if (typeof options === 'string') {
       fix = true
@@ -71,11 +76,11 @@ function patchEslintApi() {
     }
     if (!fix || !filename) {
       if (!linterContextes[linterContextes.length - 1]) {
-        return oldVerifyAndFix.call(this, code, config, options)
+        return oldVerifyAndFix.call(self, code, config, options)
       }
       linterContextes.push(null)
       try {
-        return oldVerifyAndFix.call(this, code, config, options)
+        return oldVerifyAndFix.call(self, code, config, options)
       } finally {
         linterContextes.pop()
       }
@@ -83,11 +88,11 @@ function patchEslintApi() {
     const linterContext = { id: null }
     linterContextes.push(linterContext)
     try {
-      const result = oldVerifyAndFix.call(this, code, config, options)
+      const result = oldVerifyAndFix.call(self, code, config, options)
       if (linterContext.id === null) {
         return result
       }
-      return verifyAndFixAndPrettify(this, linterContext, result, filename, config, options)
+      return verifyAndFixAndPrettify(self, linterContext, result, filename, config, options)
     } finally {
       linterContext.id = null
       linterContextes.pop()

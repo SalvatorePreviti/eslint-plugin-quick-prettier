@@ -7,6 +7,7 @@ const { isArray } = Array
 const _eslintExpectedPath = `node_modules${path.sep}eslint${path.sep}`
 let _prettier = null
 let _prettierConfig
+let _tryPrettierConfig
 
 /**
  * Requires eslint. Does it by understanding which one is the currently running eslint.
@@ -56,6 +57,20 @@ function getPrettier() {
   return _prettier || (_prettier = requirePrettier())
 }
 
+/**
+ * @returns {null | typeof import('prettier')}
+ */
+function tryGetPrettier() {
+  if (_prettier === undefined) {
+    try {
+      return requirePrettier()
+    } catch (_error) {
+      _prettier = null
+    }
+  }
+  return _prettier
+}
+
 function requirePrettier() {
   if (_prettier) {
     return _prettier
@@ -93,7 +108,11 @@ function requirePrettier() {
     resolvePaths.add(p)
   }
 
-  return require(require.resolve('prettier', { paths: Array.from(resolvePaths) }))
+  try {
+    return require(require.resolve('prettier', { paths: Array.from(resolvePaths) }))
+  } catch (_error) {
+    return require('prettier')
+  }
 }
 
 /**
@@ -137,7 +156,24 @@ function loadPrettierConfig(baseFolder = module.exports.baseFolder) {
  * }}
  */
 function getPrettierConfig() {
-  return _prettierConfig || (_prettierConfig = loadPrettierConfig())
+  if (_prettierConfig) {
+    return _prettierConfig
+  }
+  _prettierConfig = loadPrettierConfig()
+  _tryPrettierConfig = _prettierConfig
+  return _prettierConfig
+}
+
+function tryGetPrettierConfig() {
+  if (_tryPrettierConfig) {
+    return _tryPrettierConfig
+  }
+  try {
+    getPrettierConfig()
+  } catch (_error) {
+    _tryPrettierConfig = { ...require('./.prettierrc.json') }
+  }
+  return _tryPrettierConfig
 }
 
 function addToPluginsSet(set, eslintConfig) {
@@ -269,6 +305,8 @@ function addEslintConfigPrettierRules(eslintConfig) {
 
 module.exports.baseFolder = process.cwd()
 module.exports.getPrettier = getPrettier
+module.exports.tryGetPrettier = tryGetPrettier
 module.exports.getPrettierConfig = getPrettierConfig
+module.exports.tryGetPrettierConfig = tryGetPrettierConfig
 module.exports.getCallerEslintApi = getCallerEslintApi
 module.exports.addEslintConfigPrettierRules = addEslintConfigPrettierRules
