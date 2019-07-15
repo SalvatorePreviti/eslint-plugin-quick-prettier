@@ -28,6 +28,7 @@
     "eslint-plugin-eslint-plugin": "^2.1.0",
     "eslint-plugin-node": "^9.1.0",
     "eslint-plugin-self": "^1.2.0",
+    "lodash": "^4.17.14",
     "prettier": "^1.18.2"
   },
   "peerDependencies": {
