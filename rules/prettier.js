@@ -60,9 +60,9 @@ function patchEslintApi() {
 
   const Linter = eslintApi.Linter
 
-  let linterPrototype = (Linter && Linter.prototype) || eslintApi.linter
+  let linter = (Linter && Linter.prototype) || eslintApi.linter
 
-  const oldVerifyAndFix = linterPrototype
+  const oldVerifyAndFix = linter.verifyAndFix
 
   function verifyAndFix(code, config, options) {
     const self = Linter ? this : eslintApi.linter || this
@@ -99,7 +99,7 @@ function patchEslintApi() {
     }
   }
 
-  eslintApi.Linter.prototype.verifyAndFix = verifyAndFix
+  linter.verifyAndFix = verifyAndFix
 }
 
 // ESLint suppports processors that let you extract and lint JS

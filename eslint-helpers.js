@@ -71,6 +71,11 @@ function tryGetPrettier() {
   return _prettier
 }
 
+getPrettier.invalidate = function invalidatePrettier() {
+  _prettier = undefined
+  invalidatePrettierConfig()
+}
+
 function requirePrettier() {
   if (_prettier) {
     return _prettier
@@ -132,12 +137,17 @@ function requirePrettier() {
  */
 function loadPrettierConfig(baseFolder = module.exports.baseFolder) {
   return {
-    ...require('./.prettierrc.json'),
+    ...module.exports.defaultPrettierConfig,
     ...getPrettier().resolveConfig.sync(baseFolder, {
       editorconfig: true,
       useCache: true
     })
   }
+}
+
+function invalidatePrettierConfig() {
+  _prettierConfig = undefined
+  _tryPrettierConfig = undefined
 }
 
 /**
@@ -164,6 +174,8 @@ function getPrettierConfig() {
   return _prettierConfig
 }
 
+getPrettierConfig.invalidate = invalidatePrettierConfig
+
 function tryGetPrettierConfig() {
   if (_tryPrettierConfig) {
     return _tryPrettierConfig
@@ -171,10 +183,12 @@ function tryGetPrettierConfig() {
   try {
     getPrettierConfig()
   } catch (_error) {
-    _tryPrettierConfig = { ...require('./.prettierrc.json') }
+    _tryPrettierConfig = { ...module.exports.defaultPrettierConfig }
   }
   return _tryPrettierConfig
 }
+
+tryGetPrettierConfig.invalidate = invalidatePrettierConfig
 
 function addToPluginsSet(set, eslintConfig) {
   const add = plugin => {
@@ -303,6 +317,23 @@ function addEslintConfigPrettierRules(eslintConfig) {
   return eslintConfig
 }
 
+/**
+ * The default prettier configuration.
+ * Can be overridden.
+ * @type {{
+ *   parser?: string
+ *   bracketSpacing?: boolean,
+ *   jsxBracketSameLine?: boolean,
+ *   printWidth?: number,
+ *   semi?: boolean,
+ *   singleQuote?: boolean,
+ *   tabWidth?: number,
+ *   endOfLine?: string,
+ *   trailingComma?: string,
+ *   useTabs?: boolean
+ * }}
+ */
+module.exports.defaultPrettierConfig = require('./.prettierrc.json')
 module.exports.baseFolder = process.cwd()
 module.exports.getPrettier = getPrettier
 module.exports.tryGetPrettier = tryGetPrettier
