@@ -1,6 +1,7 @@
 'use strict'
 
-const { getCallerEslintApi, getPrettier, getPrettierConfig } = require('../eslint-helpers')
+const { getCallerEslintApi } = require('../eslint-helpers')
+const { getPrettier, getPrettierConfig } = require('../prettier-interface')
 
 const meta = {
   docs: {

@@ -1,13 +1,8 @@
 const path = require('path')
-const fs = require('fs')
-const Module = require('module')
 
 const { isArray } = Array
 
 const _eslintExpectedPath = `node_modules${path.sep}eslint${path.sep}`
-let _prettier = null
-let _prettierConfig
-let _tryPrettierConfig
 
 /**
  * Requires eslint. Does it by understanding which one is the currently running eslint.
@@ -49,146 +44,6 @@ function getCallerEslintApi(callerFunction, stackTraceLimit = 10) {
   }
   return require('eslint')
 }
-
-/**
- * @returns {typeof import('prettier')}
- */
-function getPrettier() {
-  return _prettier || (_prettier = requirePrettier())
-}
-
-/**
- * @returns {null | typeof import('prettier')}
- */
-function tryGetPrettier() {
-  if (_prettier === undefined) {
-    try {
-      return requirePrettier()
-    } catch (_error) {
-      _prettier = null
-    }
-  }
-  return _prettier
-}
-
-getPrettier.invalidate = function invalidatePrettier() {
-  _prettier = undefined
-  invalidatePrettierConfig()
-}
-
-function requirePrettier() {
-  if (_prettier) {
-    return _prettier
-  }
-
-  const globalPathsSet = new Set(Module.globalPaths || [])
-
-  function isGlobalPath(filepath) {
-    if (typeof filepath === 'string' && filepath.length !== 0) {
-      if (filepath.startsWith(module.exports.baseFolder)) {
-        return false
-      }
-      for (const p of globalPathsSet) {
-        if (filepath.startsWith(p)) {
-          return true
-        }
-      }
-    }
-    return false
-  }
-
-  const resolvePaths = new Set(
-    (
-      (require.resolve && require.resolve.paths && require.resolve.paths(module.exports.baseFolder)) ||
-      Module._nodeModulePaths(module.exports.baseFolder)
-    ).filter(x => !isGlobalPath(x) && fs.existsSync(x))
-  )
-  const thisPackage = path.join(__dirname, 'node_modules')
-  if (fs.existsSync(thisPackage)) {
-    resolvePaths.add(thisPackage)
-  }
-
-  const cwdPaths = require.resolve.paths(path.join(process.cwd(), 'package.json'))
-  for (const p of cwdPaths) {
-    resolvePaths.add(p)
-  }
-
-  try {
-    return require(require.resolve('prettier', { paths: Array.from(resolvePaths) }))
-  } catch (_error) {
-    return require('prettier')
-  }
-}
-
-/**
- * Loads the prettier configuration for the specified project.
- * @returns {{
- *   parser?: string
- *   bracketSpacing?: boolean,
- *   jsxBracketSameLine?: boolean,
- *   printWidth?: number,
- *   semi?: boolean,
- *   singleQuote?: boolean,
- *   tabWidth?: number,
- *   endOfLine?: string,
- *   trailingComma?: string,
- *   useTabs?: boolean
- * }}
- */
-function loadPrettierConfig(baseFolder = module.exports.baseFolder) {
-  return {
-    ...module.exports.defaultPrettierConfig,
-    ...getPrettier().resolveConfig.sync(baseFolder, {
-      editorconfig: true,
-      useCache: true
-    })
-  }
-}
-
-function invalidatePrettierConfig() {
-  _prettierConfig = undefined
-  _tryPrettierConfig = undefined
-}
-
-/**
- * Gets the prettier configuration for the current project.
- * @returns {{
- *   parser?: string
- *   bracketSpacing?: boolean,
- *   jsxBracketSameLine?: boolean,
- *   printWidth?: number,
- *   semi?: boolean,
- *   singleQuote?: boolean,
- *   tabWidth?: number,
- *   endOfLine?: string,
- *   trailingComma?: string,
- *   useTabs?: boolean
- * }}
- */
-function getPrettierConfig() {
-  if (_prettierConfig) {
-    return _prettierConfig
-  }
-  _prettierConfig = loadPrettierConfig()
-  _tryPrettierConfig = _prettierConfig
-  return _prettierConfig
-}
-
-getPrettierConfig.invalidate = invalidatePrettierConfig
-
-function tryGetPrettierConfig() {
-  if (_tryPrettierConfig) {
-    return _tryPrettierConfig
-  }
-  try {
-    getPrettierConfig()
-  } catch (_error) {
-    _tryPrettierConfig = { ...module.exports.defaultPrettierConfig }
-  }
-  return _tryPrettierConfig
-}
-
-tryGetPrettierConfig.invalidate = invalidatePrettierConfig
 
 function addToPluginsSet(set, eslintConfig) {
   const add = plugin => {
@@ -317,27 +172,5 @@ function addEslintConfigPrettierRules(eslintConfig) {
   return eslintConfig
 }
 
-/**
- * The default prettier configuration.
- * Can be overridden.
- * @type {{
- *   parser?: string
- *   bracketSpacing?: boolean,
- *   jsxBracketSameLine?: boolean,
- *   printWidth?: number,
- *   semi?: boolean,
- *   singleQuote?: boolean,
- *   tabWidth?: number,
- *   endOfLine?: string,
- *   trailingComma?: string,
- *   useTabs?: boolean
- * }}
- */
-module.exports.defaultPrettierConfig = require('./.prettierrc.json')
-module.exports.baseFolder = process.cwd()
-module.exports.getPrettier = getPrettier
-module.exports.tryGetPrettier = tryGetPrettier
-module.exports.getPrettierConfig = getPrettierConfig
-module.exports.tryGetPrettierConfig = tryGetPrettierConfig
 module.exports.getCallerEslintApi = getCallerEslintApi
 module.exports.addEslintConfigPrettierRules = addEslintConfigPrettierRules
