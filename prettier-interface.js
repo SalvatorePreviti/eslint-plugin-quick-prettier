@@ -114,7 +114,7 @@ function tryGetPrettierConfig() {
     getPrettierConfig()
   } catch (_error) {
     _tryPrettierConfig = {
-      ...(_defaultPrettierConfig || (_defaultPrettierConfig = exports.getDefaultPrettierConfig() || null))
+      ...getDefaultPrettierConfig()
     }
   }
   return _tryPrettierConfig
@@ -209,7 +209,10 @@ function loadDefaultPrettierConfig() {
 exports.loadDefaultPrettierConfig = loadDefaultPrettierConfig
 
 function getDefaultPrettierConfig() {
-  return _defaultPrettierConfig || (_defaultPrettierConfig = exports.loadDefaultPrettierConfig() || null)
+  return (
+    _defaultPrettierConfig ||
+    (_defaultPrettierConfig = exports.loadDefaultPrettierConfig() || loadDefaultPrettierConfig())
+  )
 }
 
 function requirePrettier() {
