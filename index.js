@@ -9,6 +9,7 @@ module.exports = {
       plugins: ['quick-prettier'],
       rules: {
         ...eslintConfigPrettier.rules,
+        curly: 1,
         'max-len': [0, 120],
         'no-confusing-arrow': [
           1,

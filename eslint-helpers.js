@@ -1,6 +1,7 @@
 const path = require('path')
 
 const { isArray } = Array
+const { assign: objectAssign } = Object
 
 const _eslintExpectedPath = `node_modules${path.sep}eslint${path.sep}`
 
@@ -95,9 +96,10 @@ function addToPluginsSet(set, eslintConfig) {
  * Overrides formatting rules with eslint-config-prettier
  * @template T
  * @param  {...readonly T} eslintConfig The source eslint configuration to override
+ * @param {*} [overriddenRules] Additional rules to add for every item.
  * @returns {T} A new eslint configuration with replaced rules
  */
-function addEslintConfigPrettierRules(eslintConfig) {
+function addEslintConfigPrettierRules(eslintConfig, overriddenRules) {
   eslintConfig = { ...eslintConfig, plugins: eslintConfig.plugins ? Array.from(eslintConfig.plugins) : [] }
 
   const pluginSet = new Set()
@@ -105,10 +107,7 @@ function addEslintConfigPrettierRules(eslintConfig) {
 
   const recommended = require('.').configs.recommended
 
-  eslintConfig.rules = {
-    ...recommended.rules,
-    ...eslintConfig.rules
-  }
+  const additionalRules = {}
 
   for (const recommendedPlugin of recommended.plugins) {
     if (!pluginSet.has(recommendedPlugin)) {
@@ -117,56 +116,44 @@ function addEslintConfigPrettierRules(eslintConfig) {
   }
 
   if (pluginSet.has('vue')) {
-    eslintConfig.rules = {
-      ...require('eslint-config-prettier/vue').rules,
-      ...eslintConfig.rules
-    }
+    objectAssign(additionalRules, require('eslint-config-prettier/vue').rules)
   }
 
   if (pluginSet.has('unicorn')) {
-    eslintConfig.rules = {
-      ...require('eslint-config-prettier/unicorn').rules,
-      ...eslintConfig.rules
-    }
+    objectAssign(additionalRules, require('eslint-config-prettier/unicorn').rules)
   }
 
   if (pluginSet.has('standard')) {
-    eslintConfig.rules = {
-      ...require('eslint-config-prettier/standard').rules,
-      ...eslintConfig.rules
-    }
+    objectAssign(additionalRules, require('eslint-config-prettier/standard').rules)
   }
 
   if (pluginSet.has('react')) {
-    eslintConfig.rules = {
-      ...require('eslint-config-prettier/react').rules,
-      ...eslintConfig.rules
-    }
+    objectAssign(additionalRules, require('eslint-config-prettier/react').rules)
   }
 
   if (pluginSet.has('flowtype')) {
-    eslintConfig.rules = {
-      ...require('eslint-config-prettier/flowtype').rules,
-      ...eslintConfig.rules
-    }
+    objectAssign(additionalRules, require('eslint-config-prettier/flowtype').rules)
   }
 
   if (pluginSet.has('babel')) {
-    eslintConfig.rules = {
-      ...require('eslint-config-prettier/babel').rules,
-      ...eslintConfig.rules
-    }
+    objectAssign(additionalRules, require('eslint-config-prettier/babel').rules)
   }
 
   if (pluginSet.has('@typescript-eslint')) {
-    eslintConfig.rules = {
-      ...require('eslint-config-prettier/@typescript-eslint').rules,
-      ...eslintConfig.rules
-    }
+    objectAssign(additionalRules, require('eslint-config-prettier/@typescript-eslint').rules)
+  }
+
+  eslintConfig.rules = {
+    ...additionalRules,
+    ...recommended.rules,
+    ...eslintConfig.rules,
+    ...overriddenRules
   }
 
   if (isArray(eslintConfig.overrides)) {
-    eslintConfig.overrides = eslintConfig.overrides.map(module.exports.addEslintConfigPrettierRules)
+    eslintConfig.overrides = eslintConfig.overrides.map(item => {
+      return module.exports.addEslintConfigPrettierRules(item, overriddenRules)
+    })
   }
 
   return eslintConfig
