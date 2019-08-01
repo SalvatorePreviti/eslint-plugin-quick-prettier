@@ -139,6 +139,10 @@ function verifyAndFixAndPrettify(linter, linterContext, result, filename, config
     parser = 'babylon'
   }
 
+  if (parser === null) {
+    return result
+  }
+
   const prettierConfig = getPrettierConfig()
 
   let prettifiedCode
@@ -148,16 +152,14 @@ function verifyAndFixAndPrettify(linter, linterContext, result, filename, config
       ...prettierConfig,
       filepath: filename
     })
-  } catch (error) {
-    if (!(error instanceof SyntaxError)) {
-      throw error
-    }
+  } catch (e) {
+    const error = e || {}
 
     // Prettier's message contains a codeframe style preview of the
     // invalid code and the line/column at which the error occured.
     // ESLint shows those pieces of information elsewhere already so
     // remove them from the message
-    let message = 'Parsing error: ' + error.message
+    let message = (error instanceof SyntaxError ? 'Parsing error: ' : ' Prettier error') + error.message
     if (error.codeFrame) {
       message = message.replace(`${error.codeFrame}`, '')
     }
