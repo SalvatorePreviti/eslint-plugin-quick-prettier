@@ -149,7 +149,7 @@ function verifyAndFixAndPrettify(linter, linterContext, result, filename, config
       filepath: filename
     })
   } catch (e) {
-    if (parser === null) {
+    if (parser === null || parser === undefined) {
       return result
     }
 
