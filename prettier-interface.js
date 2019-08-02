@@ -143,7 +143,7 @@ exports.tryGetPrettierConfig = tryGetPrettierConfig
  * @returns {string} The prettified code.
  */
 function format(source, options) {
-  if (!options || !!options.ignoreErrors) {
+  if (!options || !options.ignoreErrors) {
     return exports.getPrettier().format(source, { ...exports.getPrettierConfig(), ...options })
   }
 
