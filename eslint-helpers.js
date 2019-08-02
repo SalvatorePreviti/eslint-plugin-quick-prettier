@@ -143,12 +143,19 @@ function addEslintConfigPrettierRules(eslintConfig, overriddenRules) {
     objectAssign(additionalRules, require('eslint-config-prettier/@typescript-eslint').rules)
   }
 
-  eslintConfig.rules = {
+  const rules = {
     ...additionalRules,
     ...recommended.rules,
     ...eslintConfig.rules,
     ...overriddenRules
   }
+
+  if (pluginSet.has('package-json')) {
+    rules['package-json/order-properties'] = 0
+    rules['package-json/sort-collections'] = 0
+  }
+
+  eslintConfig.rules = rules
 
   if (isArray(eslintConfig.overrides)) {
     eslintConfig.overrides = eslintConfig.overrides.map(item => {

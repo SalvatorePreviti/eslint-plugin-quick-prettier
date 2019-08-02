@@ -12,7 +12,7 @@ delete rules['quick-prettier/prettier']
 
 module.exports = {
   extends: ['plugin:eslint-plugin/recommended', 'plugin:node/recommended', 'eslint:recommended'],
-  plugins: ['eslint-plugin', 'self'],
+  plugins: ['eslint-plugin', 'json', 'self'],
   env: { mocha: true },
   root: true,
   rules

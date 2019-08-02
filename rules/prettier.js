@@ -1,7 +1,9 @@
 'use strict'
 
+const { basename } = require('path')
 const { getCallerEslintApi } = require('../eslint-helpers')
 const { getPrettier, getPrettierConfig } = require('../prettier-interface')
+const jsonUtils = require('../json-utils')
 
 const meta = {
   docs: {
@@ -89,11 +91,11 @@ function patchEslintApi() {
     const linterContext = { id: null }
     linterContextes.push(linterContext)
     try {
-      const result = oldVerifyAndFix.call(self, code, config, options)
+      let result = oldVerifyAndFix.call(self, code, config, options)
       if (linterContext.id === null) {
-        return result
+        result = verifyAndFixAndPrettify(self, linterContext, result, filename, config, options)
       }
-      return verifyAndFixAndPrettify(self, linterContext, result, filename, config, options)
+      return result
     } finally {
       linterContext.id = null
       linterContextes.pop()
@@ -127,23 +129,34 @@ const parserBlocklist = new Set([null, 'graphql', 'markdown', 'html'])
 
 function verifyAndFixAndPrettify(linter, linterContext, result, filename, config, options) {
   const prettier = getPrettier()
-
   const prettierFileInfo = prettier.getFileInfo.sync(filename, { ignorePath: '.prettierignore' })
 
   if (prettierFileInfo.ignored) {
     return result
   }
 
-  let parser = prettierFileInfo.parser
+  let parser = prettierFileInfo.parser || prettierFileInfo.inferredParser
   if (parserBlocklist.has(parser)) {
     parser = 'babylon'
   }
 
   const prettierConfig = getPrettierConfig()
 
-  let prettifiedCode
+  let prettifiedCode = result.output
+
+  if (parser === 'json-stringify' && filename && basename(filename) === 'package.json') {
+    try {
+      const manifest = JSON.parse(prettifiedCode)
+      if (typeof manifest === 'object' && manifest !== null && !Array.isArray(manifest)) {
+        if (typeof manifest.name === 'string' && typeof manifest.version === 'string') {
+          prettifiedCode = JSON.stringify(jsonUtils.sortPackageJson(manifest), null, 2)
+        }
+      }
+    } catch (_error) {}
+  }
+
   try {
-    prettifiedCode = prettier.format(result.output, {
+    prettifiedCode = prettier.format(prettifiedCode, {
       parser,
       ...prettierConfig,
       filepath: filename
@@ -191,6 +204,7 @@ function verifyAndFixAndPrettify(linter, linterContext, result, filename, config
   if (result.output !== prettifiedCode) {
     result.fixed = true
     result.output = prettifiedCode
+
     if (result.messages.length !== 0) {
       result.messages = linter.verify(prettifiedCode, config, options)
     }
