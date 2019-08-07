@@ -1,4 +1,5 @@
 const path = require('path')
+const fs = require('fs')
 
 const { isArray } = Array
 const { assign: objectAssign } = Object
@@ -6,12 +7,12 @@ const { assign: objectAssign } = Object
 const _eslintExpectedPath = `node_modules${path.sep}eslint${path.sep}`
 
 /**
- * Requires eslint. Does it by understanding which one is the currently running eslint.
+ * Resolve eslint package folder.
  * @param {function} [callerFunction] The caller function
  * @param {number} [stackTraceLimit] The stack trace size to check
- * @returns {typeof import('eslint')} The required eslint
+ * @returns {string} The path of the eslint package root
  */
-function getCallerEslintApi(callerFunction, stackTraceLimit = 10) {
+function resolveCallerEslintApi(callerFunction, stackTraceLimit = 25) {
   const oldPrepareStackTrace = Error.prepareStackTrace
   const oldStackTraceLimit = Error.stackTraceLimit
   let stack
@@ -20,7 +21,7 @@ function getCallerEslintApi(callerFunction, stackTraceLimit = 10) {
     Error.prepareStackTrace = (_error, callinfos) => callinfos
     try {
       const error = new Error()
-      Error.captureStackTrace(error, callerFunction || module.exports.getCallerEslintApi)
+      Error.captureStackTrace(error, callerFunction || module.exports.resolveCallerEslintApi)
       throw error
     } catch (error) {
       stack = error.stack
@@ -31,19 +32,24 @@ function getCallerEslintApi(callerFunction, stackTraceLimit = 10) {
     Error.stackTraceLimit = oldStackTraceLimit
   }
   if (Array.isArray(stack)) {
-    for (const item of stack) {
-      if (typeof item.getFileName === 'function') {
-        const name = item.getFileName()
-        if (typeof name === 'string') {
-          const idx = name.lastIndexOf(_eslintExpectedPath)
-          if (idx >= 0) {
-            return require(name.slice(0, idx + _eslintExpectedPath.length))
+    try {
+      for (const item of stack) {
+        if (typeof item.getFileName === 'function') {
+          const name = item.getFileName()
+          if (typeof name === 'string') {
+            const idx = name.lastIndexOf(_eslintExpectedPath)
+            if (idx >= 0) {
+              const p = path.resolve(name.slice(0, idx + _eslintExpectedPath.length))
+              if (fs.existsSync(p)) {
+                return p
+              }
+            }
           }
         }
       }
-    }
+    } catch (_error) {}
   }
-  return require('eslint')
+  return path.dirname(require.resolve('eslint/package.json'))
 }
 
 function addToPluginsSet(set, eslintConfig) {
@@ -166,5 +172,6 @@ function addEslintConfigPrettierRules(eslintConfig, overriddenRules) {
   return eslintConfig
 }
 
-module.exports.getCallerEslintApi = getCallerEslintApi
+module.exports.resolveCallerEslintApi = resolveCallerEslintApi
+
 module.exports.addEslintConfigPrettierRules = addEslintConfigPrettierRules

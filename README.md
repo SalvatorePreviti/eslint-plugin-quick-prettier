@@ -32,3 +32,32 @@ Or enable just plugin in your `.eslintrc`
   }
 }
 ```
+
+To run some native fixable eslint rules only in fix mode, without raising waenings, in `.eslintrc`
+
+```json
+{
+  "plugins": ["quick-prettier"],
+  "rules": {
+    "quick-prettier/prettier": [
+      1,
+      {
+        // Prettifies package.json files
+        "prettify-package-json": true,
+        "rules": {
+          // eslint native rules to run only in --fix mode
+          "padding-line-between-statements": [
+            1,
+            {
+              "blankLine": "always",
+              "next": "import",
+              "prev": "let"
+            }
+          ],
+          "...another-rule": [1, "..."]
+        }
+      }
+    ]
+  }
+}
+```

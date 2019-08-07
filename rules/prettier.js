@@ -1,26 +1,42 @@
 'use strict'
 
 const { basename } = require('path')
-const { getCallerEslintApi } = require('../eslint-helpers')
+const { resolveCallerEslintApi } = require('../eslint-helpers')
 const { getPrettier, getPrettierConfig } = require('../prettier-interface')
 const jsonUtils = require('../json-utils')
+const { resolve: pathResolve } = require('path')
+
+const { isArray } = Array
+const { keys: objectKeys, create: objectCreate, assign: objectAssign } = Object
+const prettierSym = Symbol.for('️quick-prettier')
+
+const messages = {}
 
 const meta = {
   docs: {
     url: 'https://github.com/SalvatorePreviti/eslint-plugin-quick-prettier'
   },
-  fixable: 'code'
+  fixable: 'code',
+  messages
 }
 
-let schema = undefined
-
-const emptyObject = {}
+let schema = [
+  {
+    type: 'object',
+    'prettify-package-json': { type: 'boolean' },
+    rules: { type: 'object' }
+  }
+]
 
 exports.meta = meta
+
 exports.create = create
+
 Object.defineProperty(exports, 'schema', {
   get() {
-    patchEslintApi()
+    try {
+      patchEslintApi()
+    } catch (_error) {}
     return schema
   },
   set(value) {
@@ -36,15 +52,53 @@ function create(context) {
   if (!linterContextes) {
     patchEslintApi()
   }
+
+  const result = {}
+
   const linterContext = linterContextes[linterContextes.length - 1]
   if (linterContext && !linterContext.id) {
     linterContext.id = context.id
+
+    const options = context.options
+    let rules
+    if (options) {
+      const settings = options[0]
+      if (settings) {
+        linterContext.options = settings
+        rules = settings.rules
+      }
+    }
+
+    if (rules && !linterContext.filename.endsWith('.json')) {
+      for (const key of objectKeys(rules)) {
+        const rule = rules[key]
+        const pluginContext = objectCreate(context, {
+          id: { value: key },
+          options: { value: isArray(rule) ? rule.slice(1) : [] }
+        })
+
+        const requiredPlugin = linterContext.requirePlugin(key)
+        const plugin = requiredPlugin.create(pluginContext)
+        for (const key of objectKeys(plugin)) {
+          const value = plugin[key]
+          if (typeof value === 'function') {
+            const prev = result[key]
+            if (typeof prev === 'function') {
+              result[key] = (...args) => {
+                prev(...args)
+                return value(...args)
+              }
+            } else {
+              result[key] = value
+            }
+          }
+        }
+      }
+    }
   }
 
-  return emptyObject
+  return result
 }
-
-const prettierSym = Symbol.for('️quick-prettier')
 
 /**
  * Patches eslint public API to support prettier fix afterwards
@@ -54,7 +108,8 @@ function patchEslintApi() {
     linterContextes = []
   }
 
-  const eslintApi = getCallerEslintApi(patchEslintApi)
+  const eslintPath = resolveCallerEslintApi(patchEslintApi)
+  const eslintApi = require(eslintPath)
   if (eslintApi[prettierSym]) {
     return
   }
@@ -67,6 +122,30 @@ function patchEslintApi() {
 
   const oldVerifyAndFix = linter.verifyAndFix
 
+  const eslintRequireMap = new Map()
+
+  class LinterContext {
+    constructor(filename) {
+      this.id = null
+      this.filename = filename
+    }
+
+    requirePlugin(id) {
+      let result = eslintRequireMap.get(id)
+      if (result === undefined) {
+        result = require(pathResolve(eslintPath, 'lib', 'rules', id))
+        eslintRequireMap.set(id, result)
+        if (result && result.meta && result.meta.messages) {
+          // Add loaded plugin warning messages to this plugin meta messages
+          objectAssign(messages, result.meta.messages)
+        }
+      }
+      return result
+    }
+  }
+
+  LinterContext.prototype.settings = {}
+
   function verifyAndFix(code, config, options) {
     const self = Linter ? this : eslintApi.linter || this
     let fix, filename
@@ -77,6 +156,7 @@ function patchEslintApi() {
       fix = options.fix
       filename = options.filename
     }
+
     if (!fix || !filename) {
       if (!linterContextes[linterContextes.length - 1]) {
         return oldVerifyAndFix.call(self, code, config, options)
@@ -88,11 +168,12 @@ function patchEslintApi() {
         linterContextes.pop()
       }
     }
-    const linterContext = { id: null }
+
+    const linterContext = new LinterContext(filename)
     linterContextes.push(linterContext)
     try {
       let result = oldVerifyAndFix.call(self, code, config, options)
-      if (linterContext.id === null) {
+      if (linterContext.id) {
         result = verifyAndFixAndPrettify(self, linterContext, result, filename, config, options)
       }
       return result
@@ -144,7 +225,13 @@ function verifyAndFixAndPrettify(linter, linterContext, result, filename, config
 
   let prettifiedCode = result.output
 
-  if (parser === 'json-stringify' && filename && basename(filename) === 'package.json') {
+  if (
+    parser === 'json-stringify' &&
+    filename &&
+    (linterContext.settings['prettify-package-json'] ||
+      linterContext.settings['prettify-package-json'] === undefined) &&
+    basename(filename) === 'package.json'
+  ) {
     try {
       const manifest = JSON.parse(prettifiedCode)
       if (typeof manifest === 'object' && manifest !== null && !Array.isArray(manifest)) {
