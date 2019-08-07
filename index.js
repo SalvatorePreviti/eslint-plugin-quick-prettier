@@ -29,7 +29,7 @@ module.exports = {
             ]
           }
         ],
-        'no-tabs': 1,
+        'no-tabs': 0,
         'no-unexpected-multiline': 1,
         'quick-prettier/prettier': [
           1,
