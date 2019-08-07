@@ -18,7 +18,7 @@ module.exports = {
           }
         ],
         'no-mixed-operators': [
-          'warn',
+          1,
           {
             allowSamePrecedence: false,
             groups: [
@@ -29,8 +29,6 @@ module.exports = {
             ]
           }
         ],
-        'no-tabs': 0,
-        'no-unexpected-multiline': 1,
         'quick-prettier/prettier': [
           1,
           {
