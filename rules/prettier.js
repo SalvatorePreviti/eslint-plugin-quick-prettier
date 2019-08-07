@@ -109,6 +109,7 @@ function patchEslintApi() {
   }
 
   const eslintPath = resolveCallerEslintApi(patchEslintApi)
+
   const eslintApi = require(eslintPath)
   if (eslintApi[prettierSym]) {
     return
@@ -116,7 +117,23 @@ function patchEslintApi() {
 
   eslintApi[prettierSym] = true
 
+  function requireSourceCodeFixer() {
+    try {
+      return require(pathResolve(eslintPath, 'lib', 'linter', 'source-code-fixer'))
+    } catch (_error) {
+      return null
+    }
+  }
+
   const Linter = eslintApi.Linter
+  let SourceCodeFixer
+
+  function getSourceCodeFixer() {
+    if (SourceCodeFixer === undefined) {
+      SourceCodeFixer = requireSourceCodeFixer() || null
+    }
+    return SourceCodeFixer
+  }
 
   let linter = (Linter && Linter.prototype) || eslintApi.linter
 
@@ -174,7 +191,7 @@ function patchEslintApi() {
     try {
       let result = oldVerifyAndFix.call(self, code, config, options)
       if (linterContext.id) {
-        result = verifyAndFixAndPrettify(self, linterContext, result, filename, config, options)
+        result = verifyAndFixAndPrettify(self, linterContext, result, filename, config, options, getSourceCodeFixer)
       }
       return result
     } finally {
@@ -208,7 +225,7 @@ function patchEslintApi() {
 //   from the file type.
 const parserBlocklist = new Set([null, 'graphql', 'markdown', 'html'])
 
-function verifyAndFixAndPrettify(linter, linterContext, result, filename, config, options) {
+function verifyAndFixAndPrettify(linter, linterContext, result, filename, config, options, getSourceCodeFixer) {
   const prettier = getPrettier()
   const prettierFileInfo = prettier.getFileInfo.sync(filename, { ignorePath: '.prettierignore' })
 
@@ -290,11 +307,18 @@ function verifyAndFixAndPrettify(linter, linterContext, result, filename, config
 
   if (result.output !== prettifiedCode) {
     result.fixed = true
-    result.output = prettifiedCode
-
-    if (result.messages.length !== 0) {
-      result.messages = linter.verify(prettifiedCode, config, options)
+    let messages = linter.verify(prettifiedCode, config, options)
+    if (messages.length !== 0) {
+      const SourceCodeFixer = getSourceCodeFixer()
+      if (SourceCodeFixer && SourceCodeFixer.applyFixes) {
+        const fixedResult = SourceCodeFixer.applyFixes(prettifiedCode, messages, true)
+        messages = fixedResult.messages
+        prettifiedCode = fixedResult.output
+      }
     }
+
+    result.messages = messages
+    result.output = prettifiedCode
   }
 
   return result
