@@ -1,10 +1,10 @@
 'use strict'
 
 const { basename } = require('path')
-const { resolveCallerEslintApi } = require('../eslint-helpers')
 const { getPrettier, getPrettierConfig } = require('../prettier-interface')
 const jsonUtils = require('../json-utils')
-const { resolve: pathResolve } = require('path')
+const fs = require('fs')
+const { resolve: pathResolve, dirname: pathDirname, sep: pathSep } = require('path')
 
 const { isArray } = Array
 const { keys: objectKeys, create: objectCreate, assign: objectAssign } = Object
@@ -56,42 +56,51 @@ function create(context) {
   const result = {}
 
   const linterContext = linterContextes[linterContextes.length - 1]
-  if (linterContext && !linterContext.id) {
-    linterContext.id = context.id
 
-    const options = context.options
-    let rules
-    if (options) {
-      const settings = options[0]
-      if (settings) {
-        linterContext.options = settings
-        rules = settings.rules
-      }
+  if (!linterContext || linterContext.id) {
+    return result
+  }
+
+  linterContext.id = context.id
+
+  if (linterContext.filename.endsWith('.json')) {
+    return result
+  }
+
+  const options = context.options
+  let rules
+  if (options) {
+    const settings = options[0]
+    if (settings) {
+      linterContext.options = settings
+      rules = settings.rules
     }
+  }
 
-    if (rules && !linterContext.filename.endsWith('.json')) {
-      for (const key of objectKeys(rules)) {
-        const rule = rules[key]
-        const pluginContext = objectCreate(context, {
-          id: { value: key },
-          options: { value: isArray(rule) ? rule.slice(1) : [] }
-        })
+  if (!rules) {
+    return result
+  }
 
-        const requiredPlugin = linterContext.requirePlugin(key)
-        const plugin = requiredPlugin.create(pluginContext)
-        for (const key of objectKeys(plugin)) {
-          const value = plugin[key]
-          if (typeof value === 'function') {
-            const prev = result[key]
-            if (typeof prev === 'function') {
-              result[key] = (...args) => {
-                prev(...args)
-                return value(...args)
-              }
-            } else {
-              result[key] = value
-            }
+  for (const key of objectKeys(rules)) {
+    const rule = rules[key]
+    const pluginContext = objectCreate(context, {
+      id: { value: key },
+      options: { value: isArray(rule) ? rule.slice(1) : [] }
+    })
+
+    const requiredPlugin = linterContext.requirePlugin(key)
+    const plugin = requiredPlugin.create(pluginContext)
+    for (const key of objectKeys(plugin)) {
+      const value = plugin[key]
+      if (typeof value === 'function') {
+        const prev = result[key]
+        if (typeof prev === 'function') {
+          result[key] = (...args) => {
+            prev(...args)
+            return value(...args)
           }
+        } else {
+          result[key] = value
         }
       }
     }
@@ -99,6 +108,8 @@ function create(context) {
 
   return result
 }
+
+let _shouldFixInIde = undefined
 
 /**
  * Patches eslint public API to support prettier fix afterwards
@@ -170,11 +181,15 @@ function patchEslintApi() {
       fix = true
       filename = options
     } else {
-      fix = options.fix
+      fix = !!options.fix
       filename = options.filename
     }
 
-    if (!fix || !filename) {
+    if (!fix && _shouldFixInIde === undefined) {
+      _shouldFixInIde = loadShouldFixInIde()
+    }
+
+    if ((!fix && !_shouldFixInIde) || !filename) {
       if (!linterContextes[linterContextes.length - 1]) {
         return oldVerifyAndFix.call(self, code, config, options)
       }
@@ -190,7 +205,7 @@ function patchEslintApi() {
     linterContextes.push(linterContext)
     try {
       let result = oldVerifyAndFix.call(self, code, config, options)
-      if (linterContext.id) {
+      if (fix && linterContext.id) {
         result = verifyAndFixAndPrettify(self, linterContext, result, filename, config, options, getSourceCodeFixer)
       }
       return result
@@ -201,6 +216,15 @@ function patchEslintApi() {
   }
 
   linter.verifyAndFix = verifyAndFix
+}
+
+function loadShouldFixInIde() {
+  if (process.env.VSCODE_PID) {
+    try {
+      return fs.readFileSync('.vscode/settings.json', 'utf8').indexOf('"eslint.autoFixOnSave": true') >= 0
+    } catch (_error) {}
+  }
+  return false
 }
 
 // ESLint suppports processors that let you extract and lint JS
@@ -322,4 +346,55 @@ function verifyAndFixAndPrettify(linter, linterContext, result, filename, config
   }
 
   return result
+}
+
+const _eslintExpectedPath = `node_modules${pathSep}eslint${pathSep}`
+
+function resolveCallerEslintApi(callerFunction) {
+  const oldPrepareStackTrace = Error.prepareStackTrace
+  const oldStackTraceLimit = Error.stackTraceLimit
+  let stack
+  Error.stackTraceLimit = 25
+  try {
+    Error.prepareStackTrace = (_error, callinfos) => callinfos
+    try {
+      const error = new Error()
+      Error.captureStackTrace(error, callerFunction)
+      throw error
+    } catch (error) {
+      stack = error.stack
+    } finally {
+      Error.prepareStackTrace = oldPrepareStackTrace
+    }
+  } finally {
+    Error.stackTraceLimit = oldStackTraceLimit
+  }
+
+  if (Array.isArray(stack)) {
+    try {
+      for (const item of stack) {
+        if (typeof item.getFileName === 'function') {
+          const name = item.getFileName()
+          if (typeof name === 'string') {
+            const idx = name.lastIndexOf(_eslintExpectedPath)
+            if (idx >= 0) {
+              return pathResolve(name.slice(0, idx + _eslintExpectedPath.length))
+            }
+          }
+        }
+      }
+    } catch (_error) {}
+  }
+
+  for (let p = module; p; p = p.parent) {
+    const name = p.id
+    if (typeof name === 'string') {
+      const idx = name.lastIndexOf(_eslintExpectedPath)
+      if (idx >= 0) {
+        return pathResolve(name.slice(0, idx + _eslintExpectedPath.length))
+      }
+    }
+  }
+
+  return pathDirname(require.resolve('eslint/package.json'))
 }

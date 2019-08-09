@@ -1,56 +1,5 @@
-const path = require('path')
-const fs = require('fs')
-
 const { isArray } = Array
 const { assign: objectAssign } = Object
-
-const _eslintExpectedPath = `node_modules${path.sep}eslint${path.sep}`
-
-/**
- * Resolve eslint package folder.
- * @param {function} [callerFunction] The caller function
- * @param {number} [stackTraceLimit] The stack trace size to check
- * @returns {string} The path of the eslint package root
- */
-function resolveCallerEslintApi(callerFunction, stackTraceLimit = 25) {
-  const oldPrepareStackTrace = Error.prepareStackTrace
-  const oldStackTraceLimit = Error.stackTraceLimit
-  let stack
-  Error.stackTraceLimit = stackTraceLimit
-  try {
-    Error.prepareStackTrace = (_error, callinfos) => callinfos
-    try {
-      const error = new Error()
-      Error.captureStackTrace(error, callerFunction || module.exports.resolveCallerEslintApi)
-      throw error
-    } catch (error) {
-      stack = error.stack
-    } finally {
-      Error.prepareStackTrace = oldPrepareStackTrace
-    }
-  } finally {
-    Error.stackTraceLimit = oldStackTraceLimit
-  }
-  if (Array.isArray(stack)) {
-    try {
-      for (const item of stack) {
-        if (typeof item.getFileName === 'function') {
-          const name = item.getFileName()
-          if (typeof name === 'string') {
-            const idx = name.lastIndexOf(_eslintExpectedPath)
-            if (idx >= 0) {
-              const p = path.resolve(name.slice(0, idx + _eslintExpectedPath.length))
-              if (fs.existsSync(p)) {
-                return p
-              }
-            }
-          }
-        }
-      }
-    } catch (_error) {}
-  }
-  return path.dirname(require.resolve('eslint/package.json'))
-}
 
 function addToPluginsSet(set, eslintConfig) {
   const add = plugin => {
@@ -102,16 +51,19 @@ function addToPluginsSet(set, eslintConfig) {
  * Overrides formatting rules with eslint-config-prettier
  * @template T
  * @param  {...readonly T} eslintConfig The source eslint configuration to override
- * @param {*} [overriddenRules] Additional rules to add for every item.
+ * @param {object} [overriddenRules] Additional rules to add for every override.
+ * @param {object} [quickPrettierRules] Additional rules to add to quick-prettier/prettier inner rules.
  * @returns {T} A new eslint configuration with replaced rules
  */
-function addEslintConfigPrettierRules(eslintConfig, overriddenRules) {
+function addEslintConfigPrettierRules(eslintConfig, overriddenRules, quickPrettierRules) {
   eslintConfig = { ...eslintConfig, plugins: eslintConfig.plugins ? Array.from(eslintConfig.plugins) : [] }
 
   const pluginSet = new Set()
   addToPluginsSet(pluginSet, eslintConfig)
 
-  const recommended = require('.').configs.recommended
+  let recommended = require('.').configs.recommended
+
+  recommended.rules = { ...recommended.rules }
 
   const additionalRules = {}
 
@@ -156,6 +108,18 @@ function addEslintConfigPrettierRules(eslintConfig, overriddenRules) {
     ...overriddenRules
   }
 
+  if (quickPrettierRules) {
+    if (rules['quick-prettier/prettier']) {
+      rules['quick-prettier/prettier'] = [
+        rules['quick-prettier/prettier'][0] || rules['quick-prettier/prettier'] || 0,
+        {
+          ...rules['quick-prettier/prettier'][1],
+          ...quickPrettierRules
+        }
+      ]
+    }
+  }
+
   if (pluginSet.has('package-json')) {
     rules['package-json/order-properties'] = 0
     rules['package-json/sort-collections'] = 0
@@ -171,7 +135,5 @@ function addEslintConfigPrettierRules(eslintConfig, overriddenRules) {
 
   return eslintConfig
 }
-
-module.exports.resolveCallerEslintApi = resolveCallerEslintApi
 
 module.exports.addEslintConfigPrettierRules = addEslintConfigPrettierRules
