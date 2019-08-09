@@ -161,7 +161,7 @@ function patchEslintApi() {
     requirePlugin(id) {
       let result = eslintRequireMap.get(id)
       if (result === undefined) {
-        result = require(pathResolve(eslintPath, 'lib', 'rules', id))
+        result = requirePluginRule(eslintPath, id)
         eslintRequireMap.set(id, result)
         if (result && result.meta && result.meta.messages) {
           // Add loaded plugin warning messages to this plugin meta messages
@@ -397,4 +397,39 @@ function resolveCallerEslintApi(callerFunction) {
   }
 
   return pathDirname(require.resolve('eslint/package.json'))
+}
+
+function normalizePackageName(name) {
+  if (name.includes('\\')) {
+    name = name.replace(/\\/gu, '/')
+  }
+  if (name.startsWith('@')) {
+    const scopedPackageShortcutRegex = /^(@[^/]+)(?:\/(?:eslint-plugin)?)?$/u
+    const scopedPackageNameRegex = /^eslint-plugin(-|$)/u
+    if (scopedPackageShortcutRegex.test(name)) {
+      name = name.replace(scopedPackageShortcutRegex, '$1/eslint-plugin')
+    } else if (!scopedPackageNameRegex.test(name.split('/')[1])) {
+      name = name.replace(/^@([^/]+)\/(.*)$/u, '@$1/eslint-plugin-$2')
+    }
+  }
+  return name.startsWith('eslint-plugin-') ? name : `eslint-plugin-${name}`
+}
+
+function requirePluginRule(id, eslintPath) {
+  if (id.indexOf('/') <= 0) {
+    return require(pathResolve(eslintPath, 'lib', 'rules', id))
+  }
+
+  const n = normalizePackageName(id)
+  const indexOfSlash = n.indexOf('/')
+
+  const plugin = require(n.slice(0, indexOfSlash))
+  if (!plugin || !plugin.rules) {
+    throw new Error('Invalid eslint rule ' + id)
+  }
+  const found = plugin.rules[n.slice(indexOfSlash + 1)]
+  if (!found || typeof found.create !== 'function') {
+    throw new Error('Invalid eslint rule ' + id)
+  }
+  return found
 }
