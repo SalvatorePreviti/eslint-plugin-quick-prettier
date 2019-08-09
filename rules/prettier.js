@@ -370,7 +370,7 @@ function resolveCallerEslintApi(callerFunction) {
     Error.stackTraceLimit = oldStackTraceLimit
   }
 
-  if (Array.isArray(stack)) {
+  if (isArray(stack)) {
     try {
       for (const item of stack) {
         if (typeof item.getFileName === 'function') {
