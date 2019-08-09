@@ -161,7 +161,7 @@ function patchEslintApi() {
     requirePlugin(id) {
       let result = eslintRequireMap.get(id)
       if (result === undefined) {
-        result = requirePluginRule(eslintPath, id)
+        result = requirePluginRule(id, eslintPath)
         eslintRequireMap.set(id, result)
         if (result && result.meta && result.meta.messages) {
           // Add loaded plugin warning messages to this plugin meta messages
