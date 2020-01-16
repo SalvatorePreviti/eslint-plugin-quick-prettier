@@ -1,4 +1,5 @@
 {
+  "endOfLine": "lf",
   "bracketSpacing": true,
   "jsxBracketSameLine": false,
   "printWidth": 120,

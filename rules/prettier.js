@@ -8,7 +8,6 @@ const { resolve: pathResolve, dirname: pathDirname, sep: pathSep } = require('pa
 
 const { isArray } = Array
 const { keys: objectKeys, create: objectCreate, assign: objectAssign } = Object
-const prettierSym = Symbol.for('️quick-prettier')
 
 const messages = {}
 
@@ -46,13 +45,9 @@ Object.defineProperty(exports, 'schema', {
   enumerable: true
 })
 
-let linterContextes = null
+const linterContextes = []
 
 function create(context) {
-  if (!linterContextes) {
-    patchEslintApi()
-  }
-
   const result = {}
 
   const linterContext = linterContextes[linterContextes.length - 1]
@@ -111,44 +106,39 @@ function create(context) {
 
 let _shouldFixInIde = undefined
 
+const patchedEslintSet = new Set()
+
 /**
  * Patches eslint public API to support prettier fix afterwards
  */
 function patchEslintApi() {
-  if (!linterContextes) {
-    linterContextes = []
-  }
-
   const eslintPath = resolveCallerEslintApi(patchEslintApi)
-
-  const eslintApi = require(eslintPath)
-  if (eslintApi[prettierSym]) {
+  //const eslintApi = require(eslintPath)
+  if (patchedEslintSet.has(eslintPath)) {
     return
   }
 
-  eslintApi[prettierSym] = true
+  patchedEslintSet.add(eslintPath)
 
-  function requireSourceCodeFixer() {
-    try {
-      return require(pathResolve(eslintPath, 'lib', 'linter', 'source-code-fixer'))
-    } catch (_error) {
-      return null
+  let _legacyLinter
+  function getEslintApiLegacyLinter() {
+    if (_legacyLinter === undefined) {
+      _legacyLinter = require(eslintPath).linter || null
     }
+    return _legacyLinter
   }
 
-  const Linter = eslintApi.Linter
-  let SourceCodeFixer
+  let _SourceCodeFixerClass
 
   function getSourceCodeFixer() {
-    if (SourceCodeFixer === undefined) {
-      SourceCodeFixer = requireSourceCodeFixer() || null
+    if (_SourceCodeFixerClass === undefined) {
+      _SourceCodeFixerClass = requireSourceCodeFixer(eslintPath) || null
     }
-    return SourceCodeFixer
+    return _SourceCodeFixerClass
   }
 
-  let linter = (Linter && Linter.prototype) || eslintApi.linter
-
-  const oldVerifyAndFix = linter.verifyAndFix
+  const LinterClass = requireLinterClass(eslintPath)
+  let linterPrototype = (LinterClass && LinterClass.prototype) || getEslintApiLegacyLinter()
 
   const eslintRequireMap = new Map()
 
@@ -174,8 +164,10 @@ function patchEslintApi() {
 
   LinterContext.prototype.settings = {}
 
-  function verifyAndFix(code, config, options) {
-    const self = Linter ? this : eslintApi.linter || this
+  const oldVerifyAndFix = linterPrototype.verifyAndFix
+
+  linterPrototype.verifyAndFix = function verifyAndFix(code, config, options) {
+    const self = LinterClass ? this : getEslintApiLegacyLinter() || this
     let fix, filename
     if (typeof options === 'string') {
       fix = true
@@ -214,14 +206,44 @@ function patchEslintApi() {
       linterContextes.pop()
     }
   }
+}
 
-  linter.verifyAndFix = verifyAndFix
+function requireLinterClass(eslintPath) {
+  try {
+    const r = require(pathResolve(eslintPath, 'lib/linter/linter')).Linter
+    if (r) {
+      return r
+    }
+  } catch (_error) {}
+  try {
+    const r = require(pathResolve(eslintPath, 'lib/linter')).Linter
+    if (r) {
+      return r
+    }
+  } catch (_error) {}
+  try {
+    return require(eslintPath).Linter || null
+  } catch (_error) {}
+}
+
+function requireSourceCodeFixer(eslintPath) {
+  try {
+    return require(pathResolve(eslintPath, 'lib/linter/source-code-fixer'))
+  } catch (_error1) {}
+  try {
+    return require(pathResolve(eslintPath, 'lib/linter')).SourceCodeFixer
+  } catch (_error2) {}
+  return null
 }
 
 function loadShouldFixInIde() {
   if (process.env.VSCODE_PID) {
     try {
-      return fs.readFileSync('.vscode/settings.json', 'utf8').indexOf('"eslint.autoFixOnSave": true') >= 0
+      const vsCodeSettings = fs.readFileSync('.vscode/settings.json', 'utf8')
+      return (
+        /fixAll.eslint"\s*\s*:\s*true/.test(vsCodeSettings) ||
+        /eslint.autoFixOnSave"\s*\s*:\s*true/.test(vsCodeSettings)
+      )
     } catch (_error) {}
   }
   return false

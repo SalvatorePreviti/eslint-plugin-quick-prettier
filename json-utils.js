@@ -102,11 +102,11 @@ exports.packageJsonSortableFields = [
   'prettier',
   'engines',
   'engineStrict',
+  'bundleDependencies',
+  'bundledDependencies',
   'peerDependencies',
   'dependencies',
   'devDependencies',
-  'bundledDependencies',
-  'bundleDependencies',
   'optionalDependencies'
 ]
 
@@ -166,11 +166,11 @@ exports.packageJsonSortOrder = [
   'resolutions',
   'preferGlobal',
   'publishConfig',
+  'bundleDependencies',
+  'bundledDependencies',
   'peerDependencies',
   'dependencies',
   'devDependencies',
-  'bundledDependencies',
-  'bundleDependencies',
   'optionalDependencies',
   'prettier'
 ]
