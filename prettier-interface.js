@@ -42,6 +42,7 @@ exports.tryGetPrettier = tryGetPrettier
  * Loads the prettier configuration for the specified project.
  *
  * @returns {{
+ *   arrowParens?: string
  *   parser?: string
  *   bracketSpacing?: boolean,
  *   jsxBracketSameLine?: boolean,
@@ -67,6 +68,7 @@ function loadPrettierConfig(baseFolder = exports.baseFolder) {
 /**
  * Gets the prettier configuration for the current project.
  * @returns {{
+ *   arrowParens?: string
  *   parser?: string
  *   bracketSpacing?: boolean,
  *   jsxBracketSameLine?: boolean,
@@ -94,6 +96,7 @@ exports.getPrettierConfig = getPrettierConfig
  * Tries to get the prettier configuration for the current project.
  * Returns a default one if not found or an error occourred.
  * @returns {{
+ *   arrowParens?: string
  *   parser?: string
  *   bracketSpacing?: boolean,
  *   jsxBracketSameLine?: boolean,
@@ -127,6 +130,7 @@ exports.tryGetPrettierConfig = tryGetPrettierConfig
  *
  * @param {string} source
  * @param {{
+ *   arrowParens?: string
  *   ignoreErrors?: boolean
  *   parser?: string
  *   bracketSpacing?: boolean,
@@ -189,6 +193,7 @@ exports.reloadPrettier = reloadPrettier
  * Gets the default prettier configuration.
  * Can be overridden.
  * @type {{
+ *   arrowParens?: string
  *   parser?: string
  *   bracketSpacing?: boolean,
  *   jsxBracketSameLine?: boolean,
@@ -240,7 +245,7 @@ function requirePrettier() {
     (
       (require.resolve && require.resolve.paths && require.resolve.paths(exports.baseFolder)) ||
       Module._nodeModulePaths(exports.baseFolder)
-    ).filter(x => !isGlobalPath(x) && fs.existsSync(x))
+    ).filter((x) => !isGlobalPath(x) && fs.existsSync(x))
   )
   const thisPackage = path.join(__dirname, 'node_modules')
   if (fs.existsSync(thisPackage)) {
