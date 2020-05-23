@@ -249,28 +249,6 @@ function loadShouldFixInIde() {
   return false
 }
 
-// ESLint suppports processors that let you extract and lint JS
-// fragments within a non-JS language. In the cases where prettier
-// supports the same language as a processor, we want to process
-// the provided source code as javascript (as ESLint provides the
-// rules with fragments of JS) instead of guessing the parser
-// based off the filename. Otherwise, for instance, on a .md file we
-// end up trying to run prettier over a fragment of JS using the
-// markdown parser, which throws an error.
-// If we can't infer the parser from from the filename, either
-// because no filename was provided or because there is no parser
-// found for the filename, use javascript.
-// This is added to the options first, so that
-// prettierRcOptions and eslintPrettierOptions can still override
-// the parser.
-//
-// `parserBlocklist` should contain the list of prettier parser
-// names for file types where:
-// * Prettier supports parsing the file type
-// * There is an ESLint processor that extracts JavaScript snippets
-//   from the file type.
-const parserBlocklist = new Set([null, 'graphql', 'markdown', 'html'])
-
 function verifyAndFixAndPrettify(linter, linterContext, result, filename, config, options, getSourceCodeFixer) {
   const prettier = getPrettier()
   const prettierFileInfo = prettier.getFileInfo.sync(filename, { ignorePath: '.prettierignore' })
@@ -280,8 +258,8 @@ function verifyAndFixAndPrettify(linter, linterContext, result, filename, config
   }
 
   let parser = prettierFileInfo.parser || prettierFileInfo.inferredParser
-  if (parserBlocklist.has(parser)) {
-    parser = 'babylon'
+  if (!parser) {
+    return result
   }
 
   const prettierConfig = getPrettierConfig()
